@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = ""
     
     class Config:
-        env_file = "../.env"
+        env_file = ".env"
 
 @lru_cache()
 def get_settings():
