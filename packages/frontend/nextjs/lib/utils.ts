@@ -5,7 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-
 export function formatTimeWithGMT5(dateString: string | Date): string {
   try {
     const date = new Date(dateString)
@@ -51,7 +50,6 @@ export function formatDateTimeWithGMT5(dateString: string | Date): string {
     return typeof dateString === 'string' ? dateString : dateString.toString()
   }
 }
-
 
 export function convertTimeToGMT5ISO(date: string, time: string): string {
   try {

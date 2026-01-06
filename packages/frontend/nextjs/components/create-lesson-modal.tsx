@@ -8,9 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { API, handleApiError } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Loader2 } from 'lucide-react';
+import { format } from "date-fns"
+import { ru } from "date-fns/locale"
 
 interface CreateLessonModalProps {
   isOpen: boolean;
@@ -75,14 +79,14 @@ export default function CreateLessonModal({ isOpen, onCloseAction, onSubmitActio
         const userData = await API.users.me();
         userIsAdmin = userData.user.role === 'admin';
         setIsAdmin(userIsAdmin);
-        console.log('User role detected:', userData.user.role, 'isAdmin:', userIsAdmin);
+
       } catch (e) {
         console.error('Failed to get user data:', e);
       }
 
       try {
         const hallsData = await API.halls.getAll();
-        console.log('Halls data:', hallsData);
+
         setHalls(hallsData.halls || []);
       } catch (error) {
         console.error('Failed to fetch halls:', error);
@@ -91,14 +95,13 @@ export default function CreateLessonModal({ isOpen, onCloseAction, onSubmitActio
       try {
         let groupsData;
         if (userIsAdmin) {
-          console.log('Fetching admin groups');
+
           groupsData = await API.groups.getAll();
         } else {
-          console.log('Fetching teacher groups');
+
           groupsData = await API.teachers.getMyGroups();
         }
 
-        console.log('Groups data:', groupsData);
         const groupsList = groupsData.groups || [];
         setGroups(groupsList);
       } catch (error) {
@@ -108,7 +111,7 @@ export default function CreateLessonModal({ isOpen, onCloseAction, onSubmitActio
       if (userIsAdmin) {
         try {
           const teachersData = await API.teachers.getAll();
-          console.log('Teachers data:', teachersData);
+
           setTeachers(teachersData.teachers || []);
         } catch (error) {
           console.error('Failed to fetch teachers:', error);
@@ -134,10 +137,8 @@ export default function CreateLessonModal({ isOpen, onCloseAction, onSubmitActio
 
     setSubmitting(true);
     try {
-      console.log('Submitting lesson data:', formData);
 
       const data = await API.lessons.create(formData);
-      console.log('Response:', data);
 
       onSubmitAction(data);
 
@@ -268,13 +269,35 @@ export default function CreateLessonModal({ isOpen, onCloseAction, onSubmitActio
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="date">Дата *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleInputChange('date', e.target.value)}
-                  className="mt-1"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal mt-1 h-10"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formData.date ? (
+                        format(new Date(formData.date), "dd/MM/yyyy", { locale: ru })
+                      ) : (
+                        <span className="text-gray-500">Выберите дату</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={formData.date ? new Date(formData.date) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          handleInputChange('date', date.toISOString().split('T')[0])
+                        }
+                      }}
+                      locale={ru}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label htmlFor="startTime">Время начала *</Label>

@@ -34,7 +34,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async (token: string) => {
     try {
       setIsLoading(true);
-      console.log('Fetching notifications...');
+
       setNotifications([]);
     } catch (err) {
       console.error("[v0] Error fetching notifications:", err);
@@ -46,7 +46,7 @@ export default function NotificationsPage() {
   };
 
   const markAsRead = async (notificationId: number) => {
-    console.log('Marking notification as read:', notificationId);
+
     setNotifications((prev) => prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)));
   };
 

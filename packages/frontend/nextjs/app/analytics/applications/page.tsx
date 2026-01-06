@@ -36,12 +36,18 @@ interface UserData {
 
 interface RescheduleRequest {
   id: number
-  group_id: number
+  type?: string
+  lesson_id?: number
+  group_id?: number
   group_name: string
-  teacher_id: number
+  teacher_id?: number
   teacher_name: string
-  original_start_time: string
-  new_start_time: string
+  requested_by: string
+  current_time: string
+  new_time: string
+  new_date?: string
+  original_start_time?: string
+  new_start_time?: string
   reason: string
   status: "pending" | "approved" | "rejected"
   created_at: string
@@ -347,14 +353,14 @@ export default function ApplicationsPage() {
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <Clock className="w-4 h-4" />
-                        Текущее время
+                        Запланированное время
                       </h4>
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-sm font-medium">
-                          {formatDateWithGMT5(request.original_start_time)}
+                          {formatDateWithGMT5(request.current_time)}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {formatTimeWithGMT5(request.original_start_time)}
+                          {formatTimeWithGMT5(request.current_time)}
                         </p>
                       </div>
                     </div>
@@ -367,10 +373,10 @@ export default function ApplicationsPage() {
                       </h4>
                       <div className="bg-blue-50 p-3 rounded-lg">
                         <p className="text-sm font-medium text-blue-900">
-                          {formatDateWithGMT5(request.new_start_time)}
+                          {formatDateWithGMT5(request.new_time)}
                         </p>
                         <p className="text-sm text-blue-700">
-                          {formatTimeWithGMT5(request.new_start_time)}
+                          {formatTimeWithGMT5(request.new_time)}
                         </p>
                       </div>
                     </div>

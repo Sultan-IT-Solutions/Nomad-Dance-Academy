@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, MapPin, Calendar, BookOpen, Settings, BarChart, Loader2, ArrowLeft } from 'lucide-react';
+import TeacherAttendanceManager from '@/components/teacher-attendance-manager';
 
 interface Student {
   id: number;
@@ -108,7 +109,6 @@ export default function ManageGroupPage() {
         setGroupStats(null);
       }
 
-
       if (groupResponse.ok) {
         const groupData = await groupResponse.json();
         setGroupDetails(groupData);
@@ -117,10 +117,9 @@ export default function ManageGroupPage() {
         console.error('Failed to fetch group details:', groupResponse.status);
       }
 
-
       if (lessonsResponse.ok) {
         const lessonsData = await lessonsResponse.json();
-        console.log('Lessons data:', lessonsData);
+
         setLessons(lessonsData.lessons || []);
       } else {
         console.error('Failed to fetch lessons:', lessonsResponse.status);
@@ -247,7 +246,7 @@ export default function ManageGroupPage() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="w-4 h-4" />
               Обзор
@@ -259,6 +258,10 @@ export default function ManageGroupPage() {
             <TabsTrigger value="schedule" className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Расписание
+            </TabsTrigger>
+            <TabsTrigger value="attendance" className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Посещаемость
             </TabsTrigger>
             <TabsTrigger value="notes" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
@@ -477,6 +480,20 @@ export default function ManageGroupPage() {
                     <p className="text-gray-500">Нет запланированных занятий</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="attendance" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Посещаемость</CardTitle>
+                <CardDescription>
+                  Отмечать посещаемость студентов
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TeacherAttendanceManager groupId={parseInt(groupId)} />
               </CardContent>
             </Card>
           </TabsContent>

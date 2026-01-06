@@ -58,7 +58,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-100 to-white flex flex-col">
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
       <div className="px-6 py-6 max-w-7xl mx-auto w-full flex items-center justify-between">
         <div className="text-purple-600 text-sm font-medium">⭐ Танцевальная школа</div>
         <Link href="/register" className="text-purple-600 font-medium text-sm hover:text-purple-700">

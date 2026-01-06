@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { API, handleApiError } from "@/lib/api"
-import { Bell, SignOut, CaretLeft, CaretRight, CalendarBlank, ChartBar, Clock, User, Users, UserSwitch, X, Copy, PencilSimple, Trash, Calendar } from "@phosphor-icons/react"
+import { Bell, SignOut, CaretLeft, CaretRight, CalendarBlank, ChartBar, Clock, User, Users, UserSwitch, X, Copy, PencilSimple, Trash, Calendar as CalendarIcon } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format, parse } from "date-fns"
+import { ru } from "date-fns/locale"
 
 interface UserData {
   id: number
@@ -61,6 +69,7 @@ interface ScheduleLesson {
   is_rescheduled?: boolean
   substitute_teacher_name?: string
   recurring_days?: string
+  status?: string
 }
 
 interface LessonDetails {
@@ -90,11 +99,9 @@ export default function AnalyticsSchedulePage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [studentAttendance, setStudentAttendance] = useState<Record<number, 'P' | 'E' | 'L' | 'A' | null>>({})
 
-
   const [substituteDialogOpen, setSubstituteDialogOpen] = useState(false)
   const [selectedLessonForAction, setSelectedLessonForAction] = useState<ScheduleLesson | null>(null)
   const [selectedSubstituteTeacher, setSelectedSubstituteTeacher] = useState<string>("")
-
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editClassName, setEditClassName] = useState<string>("")
@@ -104,23 +111,60 @@ export default function AnalyticsSchedulePage() {
   const [editDuration, setEditDuration] = useState<number>(60)
   const [editDirection, setEditDirection] = useState<string>("")
 
-
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<() => void>(() => {})
   const [confirmTitle, setConfirmTitle] = useState("")
   const [confirmMessage, setConfirmMessage] = useState("")
 
-
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false)
   const [newLessonDate, setNewLessonDate] = useState<string>("")
   const [newLessonTime, setNewLessonTime] = useState<string>("")
-
 
   const showConfirmDialog = (title: string, message: string, onConfirm: () => void) => {
     setConfirmTitle(title)
     setConfirmMessage(message)
     setConfirmAction(() => onConfirm)
     setConfirmDialogOpen(true)
+  }
+
+  const refetchScheduleData = async () => {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      setLoading(true);
+
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+      const weekStart = monday.toISOString().split('T')[0];
+
+      const scheduleData = await API.schedule.getWeekly(weekStart);
+
+      const transformedLessons: ScheduleLesson[] = scheduleData.entries.map((entry: any) => ({
+        lesson_id: entry.lessonId,
+        group_id: entry.groupId,
+        group_name: entry.groupName,
+        class_name: entry.className,
+        start_time: `${entry.date}T${entry.startTime}:00`,
+        duration_minutes: entry.duration,
+        is_additional: false,
+        hall: entry.hallId ? { id: entry.hallId, name: entry.hallName } : null,
+        teacher_name: entry.teacherName,
+        is_cancelled: entry.isCancelled || false,
+        is_rescheduled: entry.isRescheduled || false,
+        substitute_teacher_name: entry.substituteTeacherName,
+        recurring_days: entry.dayIndex.toString(),
+        status: entry.status
+      }));
+
+      setLessons(transformedLessons);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error refetching schedule data:', error);
+      setLoading(false);
+    }
   }
 
   function getWeekStart(date: Date): Date {
@@ -162,22 +206,12 @@ export default function AnalyticsSchedulePage() {
     try {
       const today = new Date().toISOString().split('T')[0]
 
-      console.log('Fetching students for lesson:', {
-        group_id: lesson.group_id,
-        group_name: lesson.group_name,
-        lessonDate: today
-      })
-
       const studentsData = await API.groups.getById(lesson.group_id);
-      console.log('Students data received:', studentsData)
-
       const students = studentsData.students?.map((s: any) => ({
         id: s.id,
         name: s.name,
         attendance: s.attendance as 'P' | 'E' | 'L' | 'A' | null
       })) || [];
-
-      console.log('✅ Processed students:', students)
 
       const formatTimeWithTimezone = (dateStr: string) => {
         return formatTimeWithGMT5(dateStr)
@@ -242,12 +276,6 @@ export default function AnalyticsSchedulePage() {
         return;
       }
 
-      console.log('Would save attendance:', {
-        groupId: selectedLesson.group_id,
-        attendance: attendanceRecords,
-        lessonDate: new Date().toISOString().split('T')[0]
-      });
-
       toast.success("Посещаемость успешно сохранена");
       setDialogOpen(false);
     } catch (error) {
@@ -256,7 +284,6 @@ export default function AnalyticsSchedulePage() {
       toast.error("Произошла ошибка при сохранении посещаемости");
     }
   };
-
 
   const handleSubstituteLesson = (lesson: ScheduleLesson) => {
     setSelectedLessonForAction(lesson)
@@ -270,13 +297,19 @@ export default function AnalyticsSchedulePage() {
     }
 
     try {
-      console.log('Would set substitute teacher:', {
-        lessonId: selectedLessonForAction.lesson_id || selectedLessonForAction.group_id,
-        substituteTeacherId: selectedSubstituteTeacher,
-        lessonDate: new Date().toISOString().split('T')[0]
-      });
+      if (selectedLessonForAction.lesson_id) {
+        await API.lessons.substitute(
+          selectedLessonForAction.lesson_id,
+          parseInt(selectedSubstituteTeacher)
+        )
 
-      toast.success("Замена успешно назначена")
+        await refetchScheduleData()
+
+        toast.success("Замена успешно назначена")
+      } else {
+        toast.error("Невозможно назначить замену для регулярного занятия. Пожалуйста, создайте индивидуальное занятие.")
+      }
+
       setSubstituteDialogOpen(false)
       setSelectedSubstituteTeacher("")
       setSelectedLessonForAction(null)
@@ -284,24 +317,34 @@ export default function AnalyticsSchedulePage() {
     } catch (error) {
       console.error("Error setting substitute:", error)
       handleApiError(error);
-      toast.error("Произошла ошибка")
+
+      if (error instanceof Error && error.message.includes('не найден')) {
+        toast.error("Занятие не найдено")
+      } else {
+        toast.error("Произошла ошибка при назначении замены")
+      }
     }
   }
 
     const handleCancelLesson = async (lesson: ScheduleLesson) => {
     const performCancel = async () => {
       try {
-        console.log('Would cancel lesson:', {
-          lessonId: lesson.lesson_id || lesson.group_id,
-          lessonDate: new Date().toISOString().split('T')[0],
-          reason: 'Отменено администратором'
-        });
+        if (lesson.lesson_id) {
+          await API.lessons.cancel(lesson.lesson_id)
+        } else {
+
+          console.warn('Cannot cancel recurring lesson without lesson_id')
+          toast.error("Невозможно отменить регулярное занятие без ID урока")
+          return
+        }
+
+        await refetchScheduleData()
 
         toast.success("Урок успешно отменён")
       } catch (error) {
         console.error("Error canceling lesson:", error)
         handleApiError(error);
-        toast.error("Произошла ошибка")
+        toast.error("Произошла ошибка при отмене урока")
       }
     }
 
@@ -326,14 +369,21 @@ export default function AnalyticsSchedulePage() {
     }
 
     try {
-      console.log('Would reschedule lesson:', {
-        lessonId: selectedLessonForAction.lesson_id,
-        newDate: newLessonDate,
-        newTime: newLessonTime,
-        originalDate: new Date().toISOString().split('T')[0]
-      });
+      if (selectedLessonForAction.lesson_id) {
+        await API.lessons.reschedule(
+          selectedLessonForAction.lesson_id,
+          newLessonDate,
+          newLessonTime
+        )
 
-      toast.success("Урок успешно перенесён")
+        await refetchScheduleData()
+
+        toast.success("Урок успешно перенесён")
+      } else {
+        console.warn('Cannot reschedule lesson without lesson_id')
+        toast.error("Невозможно перенести регулярное занятие без ID урока")
+      }
+
       setRescheduleDialogOpen(false)
       setNewLessonDate("")
       setNewLessonTime("")
@@ -342,7 +392,7 @@ export default function AnalyticsSchedulePage() {
     } catch (error) {
       console.error("Error rescheduling lesson:", error)
       handleApiError(error);
-      toast.error("Произошла ошибка")
+      toast.error("Произошла ошибка при переносе урока")
     }
   }
 
@@ -359,26 +409,33 @@ export default function AnalyticsSchedulePage() {
     }
 
     try {
-      console.log('Would update lesson class name:', {
-        lessonId: selectedLessonForAction.lesson_id,
-        groupId: selectedLessonForAction.group_id,
-        newClassName: editClassName.trim()
-      });
+      if (selectedLessonForAction.lesson_id) {
+        await API.lessons.update(selectedLessonForAction.lesson_id, {
+          class_name: editClassName.trim()
+        })
 
-      toast.success("Предмет успешно изменён");
+        await refetchScheduleData()
+
+        toast.success("Название урока успешно изменено");
+      } else {
+
+        await API.admin.updateGroup(selectedLessonForAction.group_id, {
+          class_name: editClassName.trim()
+        })
+
+        await refetchScheduleData()
+
+        toast.success("Название группы успешно изменено");
+      }
+
       setEditDialogOpen(false);
       setEditClassName("");
+      setSelectedLessonForAction(null);
 
-      setLessons(lessons.map(l =>
-        (selectedLessonForAction.lesson_id && l.lesson_id === selectedLessonForAction.lesson_id) ||
-        (!selectedLessonForAction.lesson_id && l.group_id === selectedLessonForAction.group_id)
-          ? { ...l, class_name: editClassName.trim() }
-          : l
-      ));
     } catch (error) {
       console.error("Error editing lesson:", error);
       handleApiError(error);
-      toast.error("Произошла ошибка");
+      toast.error("Произошла ошибка при изменении");
     }
   };
 
@@ -386,25 +443,39 @@ export default function AnalyticsSchedulePage() {
     const performDelete = async () => {
       try {
         if (lesson.lesson_id) {
-          console.log('Would delete lesson:', lesson.lesson_id);
           await API.lessons.delete(lesson.lesson_id);
+          await refetchScheduleData()
+          toast.success("Урок успешно удален");
         } else {
-          console.log('Would delete group:', lesson.group_id);
-          await API.groups.delete(lesson.group_id);
+
+          if (lesson.group_id) {
+            const confirmGroupDeletion = confirm(
+              "Это регулярное занятие группы. Удаление удалит всю группу и все связанные с ней данные. Продолжить?"
+            );
+
+            if (confirmGroupDeletion) {
+              await API.groups.delete(lesson.group_id, false);
+              await refetchScheduleData()
+              toast.success("Группа успешно удалена");
+            } else {
+              return;
+            }
+          } else {
+            toast.error("Невозможно удалить это занятие - отсутствует идентификатор");
+            return;
+          }
         }
-
-        const successMessage = lesson.lesson_id ? "Урок успешно удален" : "Группа успешно удалена";
-        toast.success(successMessage);
-
-        setLessons(lessons.filter(l =>
-          lesson.lesson_id
-            ? l.lesson_id !== lesson.lesson_id
-            : l.group_id !== lesson.group_id
-        ));
       } catch (error) {
         console.error("Error deleting:", error);
         handleApiError(error);
-        toast.error("Произошла ошибка");
+
+        if (error instanceof Error && error.message.includes('не найден')) {
+          toast.error("Занятие не найдено");
+        } else if (lesson.lesson_id) {
+          toast.error("Ошибка при удалении урока");
+        } else {
+          toast.error("Ошибка при удалении группы");
+        }
       }
     }
 
@@ -413,23 +484,24 @@ export default function AnalyticsSchedulePage() {
       ? `${lesson.class_name} - ${lesson.group_name}`
       : lesson.group_name;
 
+    const warningText = lesson.lesson_id
+      ? `Вы уверены, что хотите УДАЛИТЬ ${itemType} "${itemName}"? Это действие нельзя отменить.`
+      : `Внимание! Это удалит всю группу "${itemName}" и все связанные данные. Это действие нельзя отменить.`;
+
     showConfirmDialog(
       `Удалить ${itemType}`,
-      `Вы уверены, что хотите УДАЛИТЬ ${itemType} "${itemName}"? Это действие нельзя отменить.`,
+      warningText,
       performDelete
     );
   };
 
-
   const handleOpenEditDialog = () => {
     if (!selectedLesson) return
-
 
     setEditDirection(selectedLesson.direction)
     setEditStartTime(selectedLesson.time.split(' - ')[0])
     setEditDuration(60)
     setEditHallId(halls.find(h => h.name === selectedLesson.hall)?.id.toString() || "")
-
 
     const teacher = teachers.find(t => t.name === selectedLesson.teacher)
     setEditTeacherId(teacher?.id.toString() || "")
@@ -440,17 +512,8 @@ export default function AnalyticsSchedulePage() {
   const handleSaveLessonEdit = async () => {
     if (!selectedLesson) return
 
-    console.log("💾 Save lesson edit clicked");
-    console.log("📝 Form data:", {
-      direction: editDirection,
-      startTime: editStartTime,
-      hallId: editHallId,
-      teacherId: editTeacherId,
-      duration: editDuration
-    });
-
     if (!editDirection.trim() || !editStartTime || !editHallId || !editTeacherId) {
-      console.log("❌ Validation failed - missing fields");
+
       toast.error("Заполните все обязательные поля");
       return;
     }
@@ -470,8 +533,6 @@ export default function AnalyticsSchedulePage() {
       formattedTime = `${hour24.toString().padStart(2, '0')}:${minutes}`;
     }
 
-    console.log("⏰ Formatted time:", formattedTime);
-
     try {
       const payload = {
         class_name: editDirection.trim(),
@@ -481,16 +542,11 @@ export default function AnalyticsSchedulePage() {
         teacherId: parseInt(editTeacherId)
       };
 
-      console.log("📤 Sending payload:", payload);
-
-      console.log('Would update lesson for group:', selectedLesson.group_id);
-
-      console.log("✅ Lesson updated successfully");
       toast.success("Занятие успешно обновлено");
       setEditDialogOpen(false);
       setDialogOpen(false);
 
-      window.location.reload();
+      await refetchScheduleData();
     } catch (error) {
       console.error("💥 Error saving lesson edit:", error);
       handleApiError(error);
@@ -509,80 +565,31 @@ export default function AnalyticsSchedulePage() {
           return;
         }
 
-        const groupsData = await API.groups.getAll();
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() + mondayOffset);
+        const weekStart = monday.toISOString().split('T')[0];
 
-        console.log('📅 Groups data from backend:', groupsData);
+        const scheduleData = await API.schedule.getWeekly(weekStart);
 
-        const dayNameToIndex: Record<string, number> = {
-          'пн': 0, 'вт': 1, 'ср': 2, 'чт': 3, 'пт': 4, 'сб': 5, 'вс': 6,
-          'Пн': 0, 'Вт': 1, 'Ср': 2, 'Чт': 3, 'Пт': 4, 'Сб': 5, 'Вс': 6
-        };
-
-        const parseSchedule = (scheduleStr: string): { dayIndex: number; time: string }[] => {
-          if (!scheduleStr) return [];
-          const entries: { dayIndex: number; time: string }[] = [];
-          const parts = scheduleStr.split(',').map(s => s.trim());
-
-          for (const part of parts) {
-            const match = part.match(/^(\S+)\s+(\d{1,2}:\d{2})$/);
-            if (match) {
-              const [, dayName, time] = match;
-              const dayIndex = dayNameToIndex[dayName];
-              if (dayIndex !== undefined) {
-                entries.push({ dayIndex, time });
-              }
-            }
-          }
-          return entries;
-        };
-
-        const transformedLessons: ScheduleLesson[] = [];
-
-        for (const g of (groupsData.groups || [])) {
-          const scheduleEntries = parseSchedule(g.schedule || '');
-
-          if (scheduleEntries.length > 0) {
-            for (const entry of scheduleEntries) {
-              const [hours, minutes] = entry.time.split(':').map(Number);
-              const fakeDate = new Date();
-              fakeDate.setHours(hours, minutes, 0, 0);
-
-              transformedLessons.push({
-                lesson_id: undefined,
-                group_id: g.id,
-                group_name: g.name,
-                class_name: g.class_name,
-                start_time: fakeDate.toISOString(),
-                duration_minutes: g.duration_minutes || 60,
-                is_additional: g.is_additional || false,
-                hall: g.hallId ? { id: g.hallId, name: g.hallName || g.hall?.name || "Не указан" } : null,
-                teacher_name: g.teacherName || g.teacher_name || "Не назначен",
-                is_cancelled: false,
-                is_rescheduled: false,
-                substitute_teacher_name: undefined,
-                recurring_days: entry.dayIndex.toString()
-              });
-            }
-          } else if (g.start_time) {
-            transformedLessons.push({
-              lesson_id: undefined,
-              group_id: g.id,
-              group_name: g.name,
-              class_name: g.class_name,
-              start_time: g.start_time,
-              duration_minutes: g.duration_minutes || 60,
-              is_additional: g.is_additional || false,
-              hall: g.hallId ? { id: g.hallId, name: g.hallName || g.hall?.name || "Не указан" } : null,
-              teacher_name: g.teacherName || g.teacher_name || "Не назначен",
-              is_cancelled: false,
-              is_rescheduled: false,
-              substitute_teacher_name: undefined,
-              recurring_days: undefined
-            });
-          }
-        }
-
-        console.log('📅 Transformed lessons:', transformedLessons);
+        const transformedLessons: ScheduleLesson[] = scheduleData.entries.map((entry: any) => ({
+          lesson_id: entry.lessonId,
+          group_id: entry.groupId,
+          group_name: entry.groupName,
+          class_name: entry.className,
+          start_time: `${entry.date}T${entry.startTime}:00`,
+          duration_minutes: entry.duration,
+          is_additional: false,
+          hall: entry.hallId ? { id: entry.hallId, name: entry.hallName } : null,
+          teacher_name: entry.teacherName,
+          is_cancelled: entry.isCancelled || false,
+          is_rescheduled: entry.isRescheduled || false,
+          substitute_teacher_name: entry.substituteTeacherName,
+          recurring_days: entry.dayIndex.toString(),
+          status: entry.status
+        }));
         setLessons(transformedLessons);
 
         const hallsData = await API.halls.getAll();
@@ -622,14 +629,12 @@ export default function AnalyticsSchedulePage() {
   const weekDays = getWeekDays(currentWeekStart)
   const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
-
   const filteredLessons = lessons.filter(lesson => {
     if (selectedHall !== "all" && lesson.hall?.name !== selectedHall) return false
     if (selectedTeacher !== "all" && lesson.teacher_name !== selectedTeacher) return false
     if (selectedGroup !== "all" && lesson.group_name !== selectedGroup) return false
     return true
   })
-
 
   const uniqueGroups = Array.from(new Set(lessons.map(l => l.group_name)))
 
@@ -650,7 +655,13 @@ export default function AnalyticsSchedulePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
 
       {}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white p-6 z-50">
@@ -924,9 +935,11 @@ export default function AnalyticsSchedulePage() {
                         const pos = getLessonPosition(lesson);
                         if (!pos || pos.top < 0 || pos.top > timeSlots.length * HOUR_HEIGHT) return null;
 
+                        const lessonKey = `${lesson.lesson_id || lesson.group_id}-${lessonIndex}-${lesson.is_cancelled}-${lesson.substitute_teacher_name}-${lesson.status}`;
+
                         return (
                           <div
-                            key={lessonIndex}
+                            key={lessonKey}
                             className="absolute left-1 right-1 z-10"
                             style={{
                               top: `${pos.top}px`,
@@ -950,7 +963,25 @@ export default function AnalyticsSchedulePage() {
                                     {lesson.class_name ? `${lesson.class_name}` : lesson.group_name}
                                   </div>
                                   <div className="text-[10px] opacity-90 truncate">{lesson.hall?.name || "Зал не указан"}</div>
-                                  <div className="text-[10px] opacity-90 truncate">{lesson.teacher_name || "Преподаватель"}</div>
+                                  <div className="text-[10px] opacity-90 truncate">
+                                    {(() => {
+
+                                      if (lesson.is_cancelled === true || lesson.status === "Отменён") {
+                                        return <span className="text-red-200 font-bold text-[11px]">ОТМЕНЁН</span>;
+                                      }
+
+                                      if (lesson.substitute_teacher_name || lesson.teacher_name?.includes("Замена:")) {
+                                        const substituteTeacher = lesson.substitute_teacher_name || lesson.teacher_name?.replace("Замена: ", "");
+                                        return <span className="text-yellow-200 font-bold text-[10px]">Замена: {substituteTeacher}</span>;
+                                      }
+
+                                      return lesson.teacher_name || "Преподаватель";
+                                    })()
+                                    }
+                                  </div>
+                                  {(lesson.is_rescheduled === true || lesson.status === "Перенесён") && (
+                                    <div className="text-[9px] text-blue-200 font-bold">ПЕРЕНЕСЁН</div>
+                                  )}
                                 </div>
 
                                 <DropdownMenu>
@@ -994,7 +1025,7 @@ export default function AnalyticsSchedulePage() {
                                       }}
                                       className="flex items-center gap-2"
                                     >
-                                      <Calendar size={16} />
+                                      <CalendarIcon size={16} />
                                       Разово перенести занятие
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
@@ -1267,12 +1298,31 @@ export default function AnalyticsSchedulePage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Новая дата</label>
-                <Input
-                  type="date"
-                  value={newLessonDate}
-                  onChange={(e) => setNewLessonDate(e.target.value)}
-                  className="bg-white"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal bg-white"
+                    >
+                      <CalendarBlank className="mr-2 h-4 w-4" />
+                      {newLessonDate ? format(parse(newLessonDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ru }) : "Выберите дату"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={newLessonDate ? parse(newLessonDate, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date: Date | undefined) => {
+                        if (date) {
+                          setNewLessonDate(format(date, 'yyyy-MM-dd'))
+                        }
+                      }}
+                      disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                      locale={ru}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div>

@@ -41,8 +41,16 @@ interface ScheduledLesson {
   isCompleted: boolean
 }
 
+interface UserData {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
 export default function TeacherGroupsPage() {
   const router = useRouter()
+  const [user, setUser] = useState<UserData | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [scheduledLessons, setScheduledLessons] = useState<ScheduledLesson[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -65,6 +73,7 @@ export default function TeacherGroupsPage() {
 
       try {
         const userData = await API.users.me()
+        setUser(userData.user)
 
         if (userData.user.role === 'student') {
           router.push('/my-groups')
@@ -96,7 +105,6 @@ export default function TeacherGroupsPage() {
 
       const groupsData = await API.teachers.getMyGroups()
 
-      console.log("API Response:", groupsData)
       setGroups(groupsData.groups || [])
     } catch (err) {
       console.error("[Teacher Groups] Error fetching groups:", err)
@@ -111,7 +119,6 @@ export default function TeacherGroupsPage() {
     try {
       setIsLessonsLoading(true)
       const lessonsData = await API.teachers.getScheduledLessons()
-      console.log("Scheduled lessons:", lessonsData)
       setScheduledLessons(lessonsData.lessons || [])
     } catch (err) {
       console.error("[Teacher Schedule] Error fetching lessons:", err)
@@ -122,14 +129,10 @@ export default function TeacherGroupsPage() {
   }
 
   const handleCreateLesson = (lessonData: any) => {
-    console.log("Creating lesson:", lessonData)
-
-  }
+    }
 
   const handleRescheduleLesson = (rescheduleData: any) => {
-    console.log("Rescheduling lesson:", rescheduleData)
-
-  }
+    }
 
   const updateAttendance = (lessonKey: string, studentId: number, status: string) => {
     setAttendanceData(prev => ({
@@ -180,7 +183,6 @@ export default function TeacherGroupsPage() {
       time = formatTimeForInput(group.start_time);
     }
 
-
     const mockLesson = {
       groupId: group.id,
       groupName: group.name,
@@ -193,7 +195,6 @@ export default function TeacherGroupsPage() {
   }
 
   const handleCreateGroup = (groupData: any) => {
-    console.log("Creating group:", groupData)
     fetchTeacherGroups()
   }
 
@@ -209,7 +210,6 @@ export default function TeacherGroupsPage() {
     return formatDateWithGMT5(startTime)
   }
 
-
   const formatDateForInput = (dateString: string) => {
     try {
       const date = new Date(dateString)
@@ -218,7 +218,6 @@ export default function TeacherGroupsPage() {
       return new Date().toISOString().split('T')[0]
     }
   }
-
 
   const formatTimeForInput = (dateString: string) => {
     try {
@@ -248,33 +247,53 @@ export default function TeacherGroupsPage() {
               >
                 Главная
               </Button>
-              <Button
-                variant="ghost"
-                className="text-foreground/70 hover:text-foreground text-sm"
-                onClick={() => router.push("/schedule")}
-              >
-                Расписание групп
-              </Button>
-              <Button
-                className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white text-sm rounded-lg px-6"
-                onClick={() => router.push("/teacher-groups")}
-              >
-                Мои группы
-              </Button>
-              <Button
-                variant="ghost"
-                className="text-foreground/70 hover:text-foreground text-sm"
-                onClick={() => router.push("/trial")}
-              >
-                Пробный урок
-              </Button>
-              <Button
-                variant="ghost"
-                className="text-foreground/70 hover:text-foreground text-sm"
-                onClick={() => router.push("/profile")}
-              >
-                Профиль
-              </Button>
+              {user?.role === 'teacher' ? (
+                <>
+                  <Button
+                    className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white text-sm rounded-lg px-6"
+                    onClick={() => router.push("/teacher-groups")}
+                  >
+                    Мои группы
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-foreground/70 hover:text-foreground text-sm"
+                    onClick={() => router.push("/profile")}
+                  >
+                    Профиль
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    className="text-foreground/70 hover:text-foreground text-sm"
+                    onClick={() => router.push("/schedule")}
+                  >
+                    Расписание групп
+                  </Button>
+                  <Button
+                    className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white text-sm rounded-lg px-6"
+                    onClick={() => router.push("/teacher-groups")}
+                  >
+                    Мои группы
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-foreground/70 hover:text-foreground text-sm"
+                    onClick={() => router.push("/trial")}
+                  >
+                    Пробный урок
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-foreground/70 hover:text-foreground text-sm"
+                    onClick={() => router.push("/profile")}
+                  >
+                    Профиль
+                  </Button>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -415,19 +434,19 @@ export default function TeacherGroupsPage() {
                     <div className="text-xs text-gray-600 mb-4">Продолжительность: {group.duration_minutes} минут</div>
 
                     <div className="space-y-2">
-                      <button
+                      <Button
                         onClick={() => handleManageGroup(group.id, group.name)}
                         className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 rounded-lg transition"
                       >
                         Управлять группой
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => openRescheduleModal(group)}
                         className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 rounded-lg transition"
                       >
                         <Edit3 className="w-4 h-4" />
                         Перенести занятие
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))}

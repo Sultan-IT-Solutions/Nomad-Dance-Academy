@@ -39,6 +39,7 @@ interface GroupData {
   capacity: number
   start_time: string | null
   duration_minutes: number
+  is_trial: boolean
   hall: {
     id: number
     name: string
@@ -78,7 +79,6 @@ export default function SchedulePage() {
   const [groups, setGroups] = useState<ScheduleGroup[]>([])
   const [filteredGroups, setFilteredGroups] = useState<ScheduleGroup[]>([])
   const [filters, setFilters] = useState<FilterData>({ teachers: [], halls: [] })
-
 
   const [selectedTeacher, setSelectedTeacher] = useState<string>("all")
   const [selectedHall, setSelectedHall] = useState<string>("all")
@@ -122,24 +122,26 @@ export default function SchedulePage() {
         const userData = await API.users.me()
         setUser(userData.user)
 
+        if (userData.user.role === 'teacher') {
+          router.push('/')
+          return
+        }
+
         try {
           const filtersData = await API.groups.getAvailable()
           setFilters({ teachers: [], halls: [] })
         } catch (err) {
-          console.log("Could not fetch filters:", err)
-        }
+          }
 
         const groupsData = await API.groups.getAvailable()
 
         const transformed = groupsData.map((group: GroupData, index: number) => {
-          const badges = [
-            { name: "Обычный", color: "bg-gray-100 text-gray-700", border: "border-gray-300", bg: "bg-white", type: "regular" },
-            { name: "Пробный", color: "bg-purple-100 text-purple-700", border: "border-purple-300", bg: "bg-purple-50/30", type: "trial" },
-            { name: "Рекомендованный", color: "bg-orange-100 text-orange-700", border: "border-orange-300", bg: "bg-orange-50/30", type: "recommended" },
-          ]
 
-          const badgeType = badges[index % badges.length]
-          const isHighlighted = index === 1 || index === 4
+          const badgeType = group.is_trial
+            ? { name: "Пробный", color: "bg-purple-100 text-purple-700", border: "border-purple-300", bg: "bg-purple-50/30", type: "trial" }
+            : { name: "Обычный", color: "bg-gray-100 text-gray-700", border: "border-gray-300", bg: "bg-white", type: "regular" }
+
+          const isHighlighted = group.is_trial
 
           const schedule = (group as any).schedule || "Не назначено";
 
@@ -151,11 +153,11 @@ export default function SchedulePage() {
             hall: group.hall ? `Зал ${group.hall.name}` : "Не назначен",
             badge: badgeType.name,
             badgeColor: badgeType.color,
-            borderColor: isHighlighted ? "border-primary border-2" : "border-border",
+            borderColor: isHighlighted ? "border-purple-300 border-2" : "border-border",
             bgColor: badgeType.bg,
             isAvailable: (group.free_slots === null || group.free_slots > 0),
-            isTrial: badgeType.type === "trial",
-            isRescheduled: badgeType.type === "recommended",
+            isTrial: group.is_trial,
+            isRescheduled: false,
           }
         })
 
@@ -171,7 +173,6 @@ export default function SchedulePage() {
 
     fetchData()
   }, [])
-
 
   useEffect(() => {
     let filtered = [...groups]
@@ -221,7 +222,13 @@ export default function SchedulePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <nav className="flex items-center justify-between">

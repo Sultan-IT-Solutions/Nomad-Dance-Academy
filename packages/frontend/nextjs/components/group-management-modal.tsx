@@ -109,7 +109,6 @@ export default function GroupManagementModal({
       setGroupNotes(groupRes.notes || '');
       setLessons(lessonsRes.lessons || []);
 
-      console.log('Lessons data:', lessonsRes);
     } catch (error) {
       console.error('Error fetching group data:', error);
       handleApiError(error);
@@ -170,7 +169,7 @@ export default function GroupManagementModal({
   }
 
   const handleAttendanceUpdate = async (lessonId: number, studentId: number, status: 'P' | 'E' | 'L' | 'A') => {
-    console.log('Updating attendance:', { lessonId, studentId, status });
+
     setAttendanceLoading(true);
     try {
       await API.teachers.saveLessonAttendance(lessonId, {
@@ -194,7 +193,6 @@ export default function GroupManagementModal({
         return lesson;
       }));
 
-      console.log('Attendance updated successfully');
     } catch (error) {
       console.error('Error updating attendance:', error);
       handleApiError(error);
@@ -203,7 +201,6 @@ export default function GroupManagementModal({
       setAttendanceLoading(false);
     }
   };
-
 
   const hasData = students.length > 0 || groupStats !== null;
 

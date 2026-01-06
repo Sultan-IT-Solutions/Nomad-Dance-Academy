@@ -4,11 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateTimeWithGMT5 } from "@/lib/utils";
 import { API, handleApiError } from "@/lib/api";
-import { Bell, Users, TrendUp, Calendar } from "@phosphor-icons/react";
+import { Bell, Users, TrendUp, Calendar, X } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +29,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast, Toaster } from "sonner";
 
 interface StudentGroup {
   groupName: string;
@@ -70,6 +82,41 @@ export default function StudentsAnalyticsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+
+  const removeStudentFromGroup = async (studentId: number, groupName: string) => {
+    try {
+      const groupsResponse = await API.admin.getGroupsAnalytics();
+      const group = groupsResponse.groups.find((g: any) => g.groupName === groupName);
+
+      if (!group) {
+        toast.error("Группа не найдена");
+        console.error("Available groups:", groupsResponse.groups.map((g: any) => g.groupName));
+        console.error("Looking for group:", groupName);
+        return;
+      }
+
+      await API.admin.removeStudentFromGroup(group.groupId, studentId);
+      toast.success(`Студент успешно удален из группы ${groupName}`);
+
+      setStudents(prev => prev.map(s => {
+        if (s.id === studentId) {
+          const updatedGroups = s.groups.filter(g => g.groupName !== groupName);
+          return {
+            ...s,
+            groups: updatedGroups,
+            isActive: updatedGroups.length > 0
+          };
+        }
+        return s;
+      }));
+
+    } catch (error) {
+      console.error("Failed to remove student from group:", error);
+      toast.error("Ошибка при удалении студента из группы");
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -87,7 +134,10 @@ export default function StudentsAnalyticsPage() {
 
       const studentsData = await API.admin.getStudentsAnalytics();
 
-      setStudents(studentsData.students || []);
+      setStudents(studentsData.students?.map((student: Student) => ({
+        ...student,
+        isActive: (student.groups?.length || 0) > 0
+      })) || []);
       setStats(studentsData.stats || stats);
       setNotifications(studentsData.notifications || []);
       setUnreadCount(studentsData.notifications?.filter((n: Notification) => !n.isRead).length || 0);
@@ -101,7 +151,6 @@ export default function StudentsAnalyticsPage() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      console.log('Marking notification as read:', notificationId);
 
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
@@ -120,16 +169,35 @@ export default function StudentsAnalyticsPage() {
       : name.substring(0, 2).toUpperCase();
   };
 
+  const filteredAndSortedStudents = students
+    .filter(student => {
 
-  const sortedStudents = [...students].sort((a, b) => {
-    if (a.isActive !== b.isActive) {
-      return a.isActive ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name, "ru");
-  });
+      const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+      let matchesLetter = true;
+      if (selectedLetter) {
+        const firstLetter = student.name.charAt(0).toUpperCase();
+        matchesLetter = firstLetter === selectedLetter;
+      }
+
+      return matchesSearch && matchesLetter;
+    })
+    .sort((a, b) => {
+      if (a.isActive !== b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
       {}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white p-6 z-50">
         <div className="mb-8">
@@ -210,8 +278,8 @@ export default function StudentsAnalyticsPage() {
           {}
           <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">Ученики</h2>
-            <p className="text-gray-500 mt-1">Информация обо всех учениках</p>
+            <h1 className="text-2xl font-semibold text-foreground">Ученики</h1>
+            <p className="text-sm text-muted-foreground mt-1">Информация обо всех учениках</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -239,7 +307,7 @@ export default function StudentsAnalyticsPage() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        console.log('Marking all notifications as read');
+
                         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                         setUnreadCount(0);
                       }}
@@ -378,6 +446,19 @@ export default function StudentsAnalyticsPage() {
         </div>
 
         {}
+        <div className="mb-8">
+          <div className="relative max-w-md">
+            <input
+              type="text"
+              placeholder="Поиск по имени..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {}
         <div className="space-y-4">
           {loading ? (
             <Card>
@@ -385,14 +466,35 @@ export default function StudentsAnalyticsPage() {
                 <p className="text-center text-gray-500">Загрузка...</p>
               </CardContent>
             </Card>
-          ) : sortedStudents.length === 0 ? (
+          ) : students
+              .filter(student => {
+
+                return student.name.toLowerCase().includes(searchTerm.toLowerCase());
+              })
+              .sort((a, b) => {
+                if (a.isActive !== b.isActive) {
+                  return a.isActive ? -1 : 1;
+                }
+                return a.name.localeCompare(b.name);
+              }).length === 0 ? (
             <Card>
               <CardContent className="py-8">
                 <p className="text-center text-gray-500">Нет учеников</p>
               </CardContent>
             </Card>
           ) : (
-            sortedStudents.map((student) => (
+            students
+              .filter(student => {
+
+                return student.name.toLowerCase().includes(searchTerm.toLowerCase());
+              })
+              .sort((a, b) => {
+                if (a.isActive !== b.isActive) {
+                  return a.isActive ? -1 : 1;
+                }
+                return a.name.localeCompare(b.name);
+              })
+              .map((student) => (
               <Card key={student.id} className={!student.isActive ? "opacity-60" : ""}>
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
@@ -405,7 +507,9 @@ export default function StudentsAnalyticsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-semibold">{student.name}</h3>
-                        {!student.isActive && (
+                        {student.isActive ? (
+                          <Badge className="bg-green-100 text-green-800">Активен</Badge>
+                        ) : (
                           <Badge variant="secondary">Не активен</Badge>
                         )}
                       </div>
@@ -418,7 +522,7 @@ export default function StudentsAnalyticsPage() {
                         </div>
                         <div>
                           <span className="text-gray-500">Телефон:</span>{" "}
-                          <span className="text-gray-900">{student.parentPhone}</span>
+                          <span className="text-gray-900">{student.phone || "Не указано"}</span>
                         </div>
                       </div>
 
@@ -428,7 +532,7 @@ export default function StudentsAnalyticsPage() {
                           {student.groups.map((group, idx) => (
                             <div key={idx} className="bg-gray-50 p-3 rounded-lg">
                               <div className="flex justify-between items-start mb-2">
-                                <div>
+                                <div className="flex-1">
                                   <p className="font-semibold text-gray-900">{group.groupName}</p>
                                   <p className="text-sm text-gray-600">
                                     Преподаватель: {group.teacher}
@@ -437,9 +541,39 @@ export default function StudentsAnalyticsPage() {
                                     {group.schedule} • {group.hall}
                                   </p>
                                 </div>
-                                <Badge variant="outline" className="ml-2">
-                                  {group.attendance}% посещаемость
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="ml-2">
+                                    {group.attendance}% посещаемость
+                                  </Badge>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                      >
+                                        <X size={16} />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Удалить студента из группы?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Вы уверены, что хотите удалить студента <strong>{student.name}</strong> из группы <strong>{group.groupName}</strong>? Это действие нельзя отменить.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Отмена</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => removeStudentFromGroup(student.id, group.groupName)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Удалить
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </div>
                             </div>
                           ))}

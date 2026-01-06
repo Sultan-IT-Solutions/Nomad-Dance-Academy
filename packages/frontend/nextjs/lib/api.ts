@@ -1,7 +1,5 @@
 
-
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 
 export function getAuthHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -10,7 +8,6 @@ export function getAuthHeaders(): HeadersInit {
     ...(token && { Authorization: `Bearer ${token}` }),
   };
 }
-
 
 export async function apiRequest<T = any>(
   endpoint: string,
@@ -50,7 +47,6 @@ export async function apiRequest<T = any>(
   return response.json();
 }
 
-
 export const API = {
   auth: {
     login: (email: string, password: string) =>
@@ -77,7 +73,13 @@ export const API = {
   },
 
   students: {
-    me: () => apiRequest('/students/me'),
+    me: () => apiRequest('/students/me', {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    }),
     getAll: () => apiRequest('/admin/students'),
     getById: (id: number) => apiRequest(`/students/${id}`),
     getGroups: (studentId: number) => apiRequest(`/students/${studentId}/groups`),
@@ -113,8 +115,8 @@ export const API = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
-    delete: (groupId: number) =>
-      apiRequest(`/admin/groups/${groupId}`, { method: 'DELETE' }),
+    delete: (groupId: number, force: boolean = false) =>
+      apiRequest(`/admin/groups/${groupId}?force=${force}`, { method: 'DELETE' }),
   },
 
   teachers: {
@@ -211,6 +213,11 @@ export const API = {
       }),
     cancel: (lessonId: number) =>
       apiRequest(`/admin/lessons/${lessonId}/cancel`, { method: 'POST' }),
+    substitute: (lessonId: number, substituteTeacherId: number) =>
+      apiRequest(`/admin/lessons/${lessonId}/substitute`, {
+        method: 'POST',
+        body: JSON.stringify({ substitute_teacher_id: substituteTeacherId }),
+      }),
   },
 
   schedule: {
@@ -222,6 +229,20 @@ export const API = {
     getTeachersAnalytics: () => apiRequest('/admin/analytics/teachers'),
     getGroupsAnalytics: () => apiRequest('/admin/analytics/groups'),
     getStudentsAnalytics: () => apiRequest('/admin/analytics/students'),
+    getGroupDetails: (groupId: number) => apiRequest(`/admin/groups/${groupId}`),
+    getGroups: () => apiRequest('/admin/groups'),
+    getHalls: () => apiRequest('/admin/halls'),
+    getTeachers: () => apiRequest('/admin/teachers'),
+    getStudents: () => apiRequest('/admin/students'),
+    updateGroup: (groupId: number, data: any) =>
+      apiRequest(`/admin/groups/${groupId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    closeGroup: (groupId: number) =>
+      apiRequest(`/admin/groups/${groupId}/close`, { method: 'POST' }),
+    openGroup: (groupId: number) =>
+      apiRequest(`/admin/groups/${groupId}/open`, { method: 'POST' }),
     addStudentToGroup: (groupId: number, studentId: number) =>
       apiRequest(`/admin/groups/${groupId}/students`, {
         method: 'POST',
@@ -229,6 +250,11 @@ export const API = {
       }),
     removeStudentFromGroup: (groupId: number, studentId: number) =>
       apiRequest(`/admin/groups/${groupId}/students/${studentId}`, { method: 'DELETE' }),
+    addGroupSchedule: (groupId: number, scheduleData: any) =>
+      apiRequest(`/admin/groups/${groupId}/schedule`, {
+        method: 'POST',
+        body: JSON.stringify(scheduleData),
+      }),
     handleAdditionalLesson: (exceptionId: number, decision: 'approve' | 'reject') =>
       apiRequest(`/admin/additional-lessons/${exceptionId}/decision`, {
         method: 'POST',
@@ -241,9 +267,35 @@ export const API = {
       apiRequest(`/admin/reschedule-requests/${requestId}/reject`, { method: 'POST' }),
   },
 
+  categories: {
+    getAll: () => apiRequest('/categories/'),
+    create: (data: { name: string; description: string | null; color?: string }) =>
+      apiRequest('/categories/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: number, data: { name?: string; description?: string | null; color?: string }) =>
+      apiRequest(`/categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: number) =>
+      apiRequest(`/categories/${id}`, { method: 'DELETE' }),
+  },
+
+  get: (endpoint: string) => apiRequest(endpoint),
+  post: (endpoint: string, data?: any) => apiRequest(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  put: (endpoint: string, data?: any) => apiRequest(endpoint, {
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  delete: (endpoint: string) => apiRequest(endpoint, { method: 'DELETE' }),
+
   health: () => apiRequest('/health'),
 };
-
 
 export function handleApiError(error: any): string {
   if (error instanceof Error) {
@@ -252,12 +304,10 @@ export function handleApiError(error: any): string {
   return 'An unexpected error occurred';
 }
 
-
 export function isAuthenticated(): boolean {
   if (typeof window === 'undefined') return false;
   return !!localStorage.getItem('token');
 }
-
 
 export function getUserRole(): string | null {
   if (typeof window === 'undefined') return null;
@@ -271,7 +321,6 @@ export function getUserRole(): string | null {
     return null;
   }
 }
-
 
 export function logout(): void {
   if (typeof window !== 'undefined') {

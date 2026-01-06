@@ -7,7 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar, Clock, Info, Loader2 } from 'lucide-react';
+import { format } from "date-fns"
+import { ru } from "date-fns/locale"
 import { API, handleApiError } from '@/lib/api';
 
 interface RescheduleLessonModalProps {
@@ -117,13 +121,35 @@ export default function RescheduleLessonModal({
             <Label htmlFor="newDate" className="text-sm font-medium">
               Новая дата <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="newDate"
-              type="date"
-              value={formData.newDate}
-              onChange={(e) => handleInputChange('newDate', e.target.value)}
-              className="mt-1"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal mt-1 h-10"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {formData.newDate ? (
+                    format(new Date(formData.newDate), "dd/MM/yyyy", { locale: ru })
+                  ) : (
+                    <span className="text-gray-500">Выберите дату</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={formData.newDate ? new Date(formData.newDate) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      handleInputChange('newDate', date.toISOString().split('T')[0])
+                    }
+                  }}
+                  locale={ru}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {}

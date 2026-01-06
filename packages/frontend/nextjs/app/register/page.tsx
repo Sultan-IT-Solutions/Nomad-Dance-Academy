@@ -51,7 +51,6 @@ export default function RegisterPage() {
 
       router.push("/login")
     } catch (err) {
-      console.log("[v0] Error during registration:", err)
       const errorMessage = handleApiError(err)
       setFieldErrors({ general: errorMessage })
     } finally {

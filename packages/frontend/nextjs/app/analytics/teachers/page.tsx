@@ -149,7 +149,13 @@ export default function TeacherAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
 
       {}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white p-6 z-50">

@@ -18,7 +18,8 @@ import {
   ChalkboardTeacher,
   Student,
   CalendarBlank,
-  Info
+  Info,
+  Tag
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -255,7 +256,13 @@ export default function HallsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        visibleToasts={5}
+        expand={true}
+        gap={8}
+      />
 
       <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white p-6 z-50">
         <div className="mb-8">
@@ -284,6 +291,9 @@ export default function HallsPage() {
           </Button>
           <Button variant="ghost" className="w-full justify-start text-gray-400 hover:bg-gray-800 hover:text-white" onClick={() => router.push("/groups")}>
             <Users className="w-5 h-5 mr-3" />Группы
+          </Button>
+          <Button variant="ghost" className="w-full justify-start text-gray-400 hover:bg-gray-800 hover:text-white" onClick={() => router.push("/analytics/categories")}>
+            <Tag className="w-5 h-5 mr-3" />Категории
           </Button>
           <Button variant="ghost" className="w-full justify-start text-white hover:bg-gray-800 bg-gray-800">
             <House className="w-5 h-5 mr-3" />Залы
