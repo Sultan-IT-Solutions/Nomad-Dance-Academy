@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import connect_to_database, close_database
-from .routes import auth, users, students, groups, teachers, admin, lessons
+from .routes import auth, users, students, groups, teachers, admin, lessons, categories
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +33,7 @@ app.include_router(groups.router)
 app.include_router(teachers.router)
 app.include_router(admin.router)
 app.include_router(lessons.router)
+app.include_router(categories.router)
 
 @app.get("/health")
 async def health_check():

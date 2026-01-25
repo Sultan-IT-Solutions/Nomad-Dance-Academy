@@ -10,14 +10,14 @@ security = HTTPBearer(auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if hashed_password.startswith("$2"):
-        # strings to bytes for bcrypt
+
         password_bytes = plain_password.encode('utf-8')
         hash_bytes = hashed_password.encode('utf-8')
         return bcrypt.checkpw(password_bytes, hash_bytes)
     return plain_password == hashed_password
 
 def get_password_hash(password: str) -> str:
-    # converting password to bytes and limit to 72 bytes for bcrypt
+
     password_bytes = password.encode('utf-8')[:72]
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
@@ -44,16 +44,16 @@ def decode_token(token: str) -> Optional[dict]:
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[dict]:
     if credentials is None:
         return None
-    
+
     token = credentials.credentials
     payload = decode_token(token)
-    
+
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
-    
+
     return payload
 
 async def require_auth(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
@@ -62,14 +62,14 @@ async def require_auth(credentials: HTTPAuthorizationCredentials = Depends(secur
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required"
         )
-    
+
     user = await get_current_user(credentials)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
-    
+
     return user
 
 async def require_admin(user: dict = Depends(require_auth)) -> dict:
@@ -93,5 +93,13 @@ async def require_student(user: dict = Depends(require_auth)) -> dict:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student access required"
+        )
+    return user
+
+async def require_admin_or_teacher(user: dict = Depends(require_auth)) -> dict:
+    if user.get("role") not in ["admin", "teacher"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or teacher access required"
         )
     return user

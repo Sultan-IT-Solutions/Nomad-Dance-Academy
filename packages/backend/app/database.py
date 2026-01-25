@@ -7,9 +7,9 @@ pool: Optional[asyncpg.Pool] = None
 async def connect_to_database():
     global pool
     settings = get_settings()
-    
+
     print(f"Host: {settings.DB_HOST}, Port: {settings.DB_PORT}, Database: {settings.DB_NAME}, User: {settings.DB_USER}")
-    
+
     try:
         pool = await asyncpg.create_pool(
             host=settings.DB_HOST,
